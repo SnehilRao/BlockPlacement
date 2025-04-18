@@ -1,4 +1,6 @@
 import cvxpy as cp
+import networkx as nx
+import matplotlib.pyplot as plt
 
 # Initial edge list with cost and capacity
 edges_with_capacity = {
