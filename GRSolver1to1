@@ -1,0 +1,102 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr 18 18:11:06 2025
+
+@author: esneh
+"""
+
+
+import cvxpy as cp
+
+# Node list
+nodes = list(range(1, 9))
+
+# Edge list with costs
+edges = [
+    (1, 2, 1),
+    (1, 4, 5),
+    (2, 4, 2),
+    (2, 8, 1),
+    (3, 4, 2),
+    (3, 8, 5),
+    (4, 5, 3),
+    (4, 6, 4),
+    (5, 8, 3),
+    (6, 8, 4),
+    (6, 7, 6),
+]
+
+# Adjacency and cost mappings
+aij = {}
+Cij = {}
+for i, j, c in edges:
+    aij[(i, j)] = 1
+    aij[(j, i)] = 1
+    Cij[(i, j)] = c
+    Cij[(j, i)] = c
+
+# Define binary decision variables
+V = { (i, j): cp.Variable(boolean=True) for (i, j) in aij }
+
+# Objective: minimize total cost
+objective = cp.Minimize(cp.sum([Cij[i, j] * V[i, j] for (i, j) in Cij]))
+
+# Constraints list
+constraints = []
+
+# Source node (1): one outgoing edge
+constraints.append(cp.sum([V[1, j] for j in nodes if (1, j) in V]) == 1)
+
+# Destination node (6): one incoming edge
+constraints.append(cp.sum([V[j, 6] for j in nodes if (j, 6) in V]) == 1)
+
+# Flow conservation for intermediate nodes
+for i in nodes:
+    if i != 1 and i != 6:
+        incoming = cp.sum([V[j, i] for j in nodes if (j, i) in V])
+        outgoing = cp.sum([V[i, k] for k in nodes if (i, k) in V])
+        constraints.append(incoming == outgoing)
+
+# Solve the problem
+prob = cp.Problem(objective, constraints)
+prob.solve(solver=cp.GLPK_MI)
+
+# Display solution
+print("Optimal path edges with cost:")
+for (i, j), var in V.items():
+    if var.value is not None and var.value > 0.5:
+        print(f"{i} -> {j} (cost {Cij[(i, j)]})")
+
+
+#  Visualization of the graph with path
+import networkx as nx
+import matplotlib.pyplot as plt
+
+# Create NetworkX graph
+G = nx.Graph()
+
+# Add edges and costs
+for (i, j), cost in Cij.items():
+    G.add_edge(i, j, weight=cost)
+
+# Get only the path edges from the solution
+path_edges = [(i, j) for (i, j), var in V.items() if var.value and var.value > 0.5]
+
+# Draw the graph
+pos = nx.circular_layout(G)
+plt.figure(figsize=(10, 8))
+
+# Draw nodes
+nx.draw_networkx_nodes(G, pos, node_color='lightblue', node_size=1000)
+nx.draw_networkx_labels(G, pos, font_size=12)
+
+# Draw all edges
+nx.draw_networkx_edges(G, pos, width=1, edge_color='gray')
+nx.draw_networkx_edge_labels(G, pos, edge_labels={(i, j): Cij[(i, j)] for (i, j) in G.edges()})
+
+# Highlight path edges
+nx.draw_networkx_edges(G, pos, edgelist=path_edges, width=4, edge_color='red')
+
+plt.title("Optimal Path Highlighted in Red")
+plt.axis("off")
+plt.show()
